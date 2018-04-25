@@ -1,6 +1,8 @@
 (ns my-exercise.home
   (:require [hiccup.page :refer [html5]]
             [ring.util.anti-forgery :refer [anti-forgery-field]]
+            [clj-http.client :as http]
+            [clojure.data.json :as json]
             [my-exercise.us-state :as us-state]))
 
 (defn header [_]
@@ -136,3 +138,68 @@
    (header request)
    (instructions request)
    (address-form request)))
+
+;;
+;;
+;; New work starts HERE
+;;
+;;
+
+
+;; Make the first OCD-ID from the state only.
+(defn ocd-id1 [city state]
+  (str "ocd-division/country:us/state:"
+       (clojure.string/lower-case state)))
+
+;; Make the second OCD-ID from both city and state, replacing spaces in the city
+;; with underscores.
+(defn ocd-id2 [city state]
+  (str (ocd-id1 city state)
+       "/place:"
+       (clojure.string/lower-case
+        (clojure.string/replace city #"\s" "_"))))
+
+
+;; A very very simple function to just show what the API returned.
+(defn show-all-elections [election]
+  [:table
+   (map (fn [key value]
+          (html5 [:tr
+                  [:td key]
+                  [:td (str value)]]))
+        (keys election)
+        (vals election))])
+
+
+;; Call the API from Democracy Works with all of the info entered in the form.
+;;
+;; Completed:
+;; 1.  Ingest form parameters
+;; 2.  Derive basic set of OCD-IDs from address
+;; 3.  Retrieve upcoming elections from API
+;; 4.  Display matching elections to user (in a very ugly way)
+;; 5.  Define (some) tests
+;;
+;; Would do with more time
+;; 1.  Make the election output more user friendly
+;; 2.  If there were no election results, output an appropriate message instead
+;;     showing nothing
+;; 3.  Do something fancier to map addresses to OCD-IDs
+;; 4.  Better exception handling (e.g. user inputs, API errors, etc.)
+;; 5.  Add to current list of very simple tests.
+(defn call-api [street street-2 city state zip]
+
+  (let [id1 (ocd-id1 city state)
+        id2 (ocd-id2 city state)
+        result (http/get (str "https://api.turbovote.org/elections/upcoming?district-divisions="
+                              id1 "," id2) {:accept :json})
+        body (json/read-str (get-in result [:body]))]
+    (map show-all-elections body)))
+
+
+(defn searchpage [street street-2 city state zip]
+  (html5
+   (header [])
+   (call-api street street-2 city state zip)
+   (address-form [])
+   ))
